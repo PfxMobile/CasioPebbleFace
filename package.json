@@ -1,16 +1,17 @@
 {
-    "author": "PanicMan/Jack T.",
+    "author": "SKireykov",
     "dependencies": {
         "pebble-effect-layer": "^1.1.3"
     },
     "keywords": [],
-    "name": "casio-wv-58de",
+    "name": "casio-wv-58de-rus",
     "pebble": {
         "capabilities": [
             "location",
-            "configurable"
+            "configurable",
+            "health"
         ],
-        "displayName": "Casio WV-58DE",
+        "displayName": "Casio WV-58DE RUS",
         "enableMultiJS": false,
         "messageKeys": {
             "JS_READY": 0,
@@ -33,12 +34,30 @@
         "resources": {
             "media": [
                 {
+                    "characterRegex": "[A-Z]",
+                    "compatibility": "2.7",
+                    "file": "fonts/LCD-Dot.ttf",
+                    "name": "FONT_DIGITAL_CASIO_DOTTED_22",
+                    "targetPlatforms": null,
+                    "trackingAdjust": -1,
+                    "type": "font"
+                },
+                {
+                    "characterRegex": "[-/0-9.]",
+                    "compatibility": "2.7",
+                    "file": "fonts/casio 59.ttf",
+                    "name": "FONT_DIGITAL_CASIO_26",
+                    "targetPlatforms": null,
+                    "trackingAdjust": -1,
+                    "type": "font"
+                },
+                {
                     "characterRegex": "[0-9:]",
                     "compatibility": "2.7",
                     "file": "fonts/casio 59.ttf",
-                    "name": "FONT_DIGITAL_CASIO_59",
+                    "name": "FONT_DIGITAL_CASIO_66",
                     "targetPlatforms": null,
-                    "trackingAdjust": -3,
+                    "trackingAdjust": -7,
                     "type": "font"
                 },
                 {
@@ -79,23 +98,25 @@
                     "type": "font"
                 },
                 {
-                    "characterRegex": "[-/0-9.]",
-                    "compatibility": "2.7",
-                    "file": "fonts/DIGITAL_BOLD.TTF",
-                    "name": "FONT_DIGITAL_25",
-                    "trackingAdjust": -1,
-                    "type": "font"
-                },
-                {
                     "characterRegex": "[0-9:]",
                     "compatibility": "2.7",
                     "file": "fonts/DIGITAL_BOLD.TTF",
                     "name": "FONT_DIGITAL_55",
+                    "targetPlatforms": null,
                     "trackingAdjust": -3,
                     "type": "font"
                 },
                 {
-                    "characterRegex": "[I\\\"!k$+F9=N#,>`_h]",
+                    "characterRegex": "[-/0-9.]",
+                    "compatibility": "2.7",
+                    "file": "fonts/DIGITAL_BOLD.TTF",
+                    "name": "FONT_DIGITAL_25",
+                    "targetPlatforms": null,
+                    "trackingAdjust": -1,
+                    "type": "font"
+                },
+                {
+                    "characterRegex": "[I\\\"!k$+F9=N#,>`_hl]",
                     "file": "fonts/Climacons.ttf",
                     "name": "FONT_WEATHER_32",
                     "targetPlatforms": null,
@@ -105,14 +126,12 @@
         },
         "sdkVersion": "3",
         "targetPlatforms": [
-            "aplite",
-            "basalt",
             "diorite"
         ],
-        "uuid": "3b0996db-d1f4-4420-8676-1482f52ff3cd",
+        "uuid": "4ad9a568-6f4e-4f65-94a4-0f290f19b7e4",
         "watchapp": {
             "watchface": true
         }
     },
-    "version": "2.10.0"
+    "version": "1.0.0"
 }

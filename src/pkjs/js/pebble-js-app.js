@@ -118,7 +118,7 @@ function updateWeather() {
 				var icon = response.weather[0].icon;
 				var cond = response.weather[0].description;
 				var name = response.name;
-				console.log("Got Weather Data for City: " + name + ", Temp: " + temp + ", Icon:" + icon + "/" + weatherIcon[icon]+", Cond:"+cond);
+        console.log("Got Weather Data for City: " + name + ", Temp: " + temp + ", Icon:" + icon + weatherIcon[icon]+", Cond:"+cond);
 				sendMessageToPebble({
 					"w_temp": temp,
 					"w_icon": weatherIcon[icon],
@@ -134,7 +134,7 @@ Pebble.addEventListener("showConfiguration", function() {
     var options = JSON.parse(localStorage.getItem('cas_wv_28de_opt'));
     console.log("read options: " + JSON.stringify(options));
     console.log("showing configuration");
-	var uri = 'http://panicman.github.io/config_casiowv58de.html?title=Casio%20WV-58DE%20v2.10';
+	var uri = 'https://pfxmobile.github.io/config_casiowv58de.html?title=Casio%20WV-58DE%20v2.10';
     if (options !== null) {
         uri +=
 			'&inv=' + encodeURIComponent(options.inv) + 

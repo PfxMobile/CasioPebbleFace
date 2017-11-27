@@ -1,6 +1,6 @@
 #include <pebble.h>
 #include <pebble-effect-layer/pebble-effect-layer.h>
-
+#define DEBUG 1
 
 enum ConfigKeys {
 	JS_READY=0,
@@ -39,11 +39,11 @@ typedef struct {
 
 static CfgDta_t CfgData = {
 	.inv = false,
-	.showsec = 1,
+	.showsec = 0,
 	.showbatt = 100,
 	.vibr = false,
 	.vibr_bt = true,
-	.battdgt = false,	
+	.battdgt = true,	
 	.datefmt = 1,
 	.isdst = false,
 	.isAM = false,
@@ -71,7 +71,7 @@ static GFont digitS, digitM, digitL, WeatherF, arial9;
 char ddmmBuffer[] = "00-00", yyyyBuffer[] = "0000", hhmmBuffer[] = "00:00", ssBuffer[] = "00", wdBuffer[] = "XXXX";
 static uint8_t aktBatt, aktBattAnim;
 static AppTimer *timer_weather, *timer_batt;
-
+HealthValue stepsValue = 0;
 //-----------------------------------------------------------------------------------------------------------------------
 char *upcase(char *str) {
     for (int i = 0; str[i] != 0; i++) {
@@ -164,6 +164,14 @@ void bluetooth_connection_handler(bool connected)
 		});
 }
 //-----------------------------------------------------------------------------------------------------------------------
+static void handle_health(HealthEventType event, void *context) {
+		if (DEBUG) APP_LOG(APP_LOG_LEVEL_DEBUG, "update_health : %d", event);		
+		if (event == HealthEventSignificantUpdate || event == HealthEventMovementUpdate) {
+			stepsValue = health_service_sum_today(HealthMetricStepCount);
+			update_all();
+		}
+}
+//-----------------------------------------------------------------------------------------------------------------------
 static void background_layer_update_callback(Layer *layer, GContext* ctx) 
 {
 	app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Background Layer Update");
@@ -192,18 +200,24 @@ static void background_layer_update_callback(Layer *layer, GContext* ctx)
 	}
 	
 	//Weather
-	GRect rc = GRect(95, 30, 34, 34);
+	GRect rc = GRect(110, 80, 34, 34);
 	if (CfgData.weather)
 	{
+    app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Background Layer Update: Weather");
 		if (CfgData.w_time != 0)
 		{
+      app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Background Layer Update: Weather CfgData.w_time != 0");
 			char sTemp[] = "-999";
 			snprintf(sTemp, sizeof(sTemp), "%d", (int16_t)((double)CfgData.w_temp * (CfgData.isunit ? 1.8 : 1) + (CfgData.isunit ? 32 : 0))); //Â°C or Â°F?
-			graphics_draw_text(ctx, sTemp, digitS, GRect(20, 40 - (CfgData.cond ? 2 : 0), 50, 32), GTextOverflowModeFill, GTextAlignmentRight, NULL);
-			graphics_draw_text(ctx, !CfgData.isunit ? "_" : "`", WeatherF, GRect(72, 34 - (CfgData.cond ? 2 : 0), 18, 32), GTextOverflowModeFill, GTextAlignmentCenter, NULL);
+			graphics_draw_text(ctx, sTemp, digitS, GRect(82, 54 - (CfgData.cond ? 2 : 0), 50, 32), GTextOverflowModeFill, GTextAlignmentRight, NULL);
+			graphics_draw_text(ctx, !CfgData.isunit ? "_" : "`", WeatherF, GRect(134, 50 - (CfgData.cond ? 2 : 0), 18, 32), GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 
 			GSize sz = graphics_text_layout_get_content_size(CfgData.w_icon, WeatherF, rc, GTextOverflowModeFill, GTextAlignmentCenter);
-			graphics_draw_text(ctx, CfgData.w_icon, WeatherF, GRect(rc.origin.x+rc.size.w/2-sz.w/2, rc.origin.y+rc.size.h/2-sz.h/2, sz.w, sz.h), GTextOverflowModeFill, GTextAlignmentCenter, NULL);
+      app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Background Layer Update: Get icon sz h:%d w:%d:",sz.w,sz.h);
+      app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Background Layer Update: Get icon coordinates x:%d y:%d:",rc.origin.x+rc.size.w/2-sz.w/2,rc.origin.y+rc.size.h/2-sz.h/2);
+      int defaultIconSize = 28;
+			// graphics_draw_text(ctx, CfgData.w_icon, WeatherF, GRect(rc.origin.x+rc.size.w/2-sz.w/2, rc.origin.y+rc.size.h/2-sz.h/2, sz.w, sz.h), GTextOverflowModeFill, GTextAlignmentCenter, NULL);
+      graphics_draw_text(ctx, CfgData.w_icon, WeatherF, GRect(rc.origin.x+rc.size.w/2-defaultIconSize/2, rc.origin.y+rc.size.h/2-defaultIconSize/2, defaultIconSize, defaultIconSize), GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 			
 			if (CfgData.cond)
 			{
@@ -213,6 +227,7 @@ static void background_layer_update_callback(Layer *layer, GContext* ctx)
 		}
 		else
 		{
+       app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Background Layer Update: Weather ELSE");
 			GSize sz = graphics_text_layout_get_content_size("h", WeatherF, rc, GTextOverflowModeFill, GTextAlignmentCenter);
 			graphics_draw_text(ctx, "h", WeatherF, GRect(rc.origin.x+rc.size.w/2-sz.w/2, rc.origin.y+rc.size.h/2-sz.h/2, sz.w, sz.h), GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 		}
@@ -231,8 +246,17 @@ static void background_layer_update_callback(Layer *layer, GContext* ctx)
 	{
 		char sTemp[] = "100%";
 		snprintf(sTemp, sizeof(sTemp), "%d%%", aktBatt);
-		graphics_draw_text(ctx, sTemp, arial9, GRect(115, 90, 25, 10), GTextOverflowModeFill, GTextAlignmentCenter, NULL);
+		graphics_draw_text(ctx, sTemp, arial9, GRect(115, 155, 25, 10), GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 	}
+  // Steps
+  char stepsTemp[] = "0000";	
+  snprintf(stepsTemp, sizeof(stepsTemp), "%d", (int) stepsValue);  
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "Steps: %s", stepsTemp);
+  //text_layer_set_text(yyyy_layer, stepsTemp);
+  graphics_draw_text(ctx, stepsTemp, digitS, GRect(78, 5, 60, 32), GTextOverflowModeFill, GTextAlignmentRight, NULL);
+  
+  
+				
 }
 //-----------------------------------------------------------------------------------------------------------------------
 void tick_handler(struct tm *tick_time, TimeUnits units_changed)
@@ -271,8 +295,8 @@ void tick_handler(struct tm *tick_time, TimeUnits units_changed)
 		text_layer_set_text(wd_layer, wdBuffer);
 		APP_LOG(APP_LOG_LEVEL_DEBUG, "WeekDay: %s", wdBuffer);
 
-		strftime(yyyyBuffer, sizeof(yyyyBuffer), "%Y", tick_time);
-		text_layer_set_text(yyyy_layer, yyyyBuffer);
+		//strftime(yyyyBuffer, sizeof(yyyyBuffer), "%Y", tick_time);
+		//text_layer_set_text(yyyy_layer, yyyyBuffer);
 
 		//Check DST at 4h at morning
 		if ((tick_time->tm_hour == 4 && tick_time->tm_min == 0) || units_changed == MINUTE_UNIT)
@@ -527,8 +551,8 @@ void window_load(Window *window)
 	radio = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_RADIO);
 	
 	digitS = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_DIGITAL_25));
-	digitM = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_DIGITAL_35));
-	digitL = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_DIGITAL_55));
+	digitM = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_DIGITAL_CASIO_DOTTED_22));
+	digitL = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_DIGITAL_CASIO_66));
  	WeatherF = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_WEATHER_32));
 	arial9 = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_ARIAL_BOLD_9));
  
@@ -548,18 +572,18 @@ void window_load(Window *window)
 	layer_add_child(window_layer, text_layer_get_layer(ddmm_layer));
         
 	//YEAR layer
-	yyyy_layer = text_layer_create(GRect(82, 5, 60, 32));
-	text_layer_set_background_color(yyyy_layer, GColorClear);
-	text_layer_set_text_color(yyyy_layer, GColorBlack);
-	text_layer_set_text_alignment(yyyy_layer, GTextAlignmentCenter);
-	text_layer_set_font(yyyy_layer, digitS);
-	layer_add_child(window_layer, text_layer_get_layer(yyyy_layer));
+	//yyyy_layer = text_layer_create(GRect(82, 5, 60, 32));
+	//text_layer_set_background_color(yyyy_layer, GColorClear);
+	//text_layer_set_text_color(yyyy_layer, GColorBlack);
+	//text_layer_set_text_alignment(yyyy_layer, GTextAlignmentCenter);
+	//text_layer_set_font(yyyy_layer, digitS);
+	//layer_add_child(window_layer, text_layer_get_layer(yyyy_layer));
         
 	//HOUR+MINUTE layer
-	hhmm_layer = text_layer_create(GRect(3, 53, 110, 75));
+	hhmm_layer = text_layer_create(GRect(0, 53, 110, 75));
 	text_layer_set_background_color(hhmm_layer, GColorClear);
 	text_layer_set_text_color(hhmm_layer, GColorBlack);
-	text_layer_set_text_alignment(hhmm_layer, GTextAlignmentCenter);
+	text_layer_set_text_alignment(hhmm_layer, GTextAlignmentLeft);
 	text_layer_set_overflow_mode(hhmm_layer, GTextOverflowModeFill);
 	text_layer_set_font(hhmm_layer, digitL);
 	layer_add_child(window_layer, text_layer_get_layer(hhmm_layer));
@@ -572,12 +596,12 @@ void window_load(Window *window)
 	text_layer_set_font(ss_layer, digitS);
         
 	//Init battery
-	battery_layer = bitmap_layer_create(GRect(116, 90, 20, 10)); 
+	battery_layer = bitmap_layer_create(GRect(116, 155, 20, 10)); 
 	bitmap_layer_set_background_color(battery_layer, GColorClear);
 	layer_add_child(window_layer, bitmap_layer_get_layer(battery_layer));	
 	
 	//WEEKDAY layer
-	wd_layer = text_layer_create(GRect(3, 124, 84, 40));
+	wd_layer = text_layer_create(GRect(0, 138, 84, 40));
 	text_layer_set_background_color(wd_layer, GColorClear);
 	text_layer_set_text_color(wd_layer, GColorBlack);
 	text_layer_set_text_alignment(wd_layer, GTextAlignmentCenter);
@@ -585,7 +609,7 @@ void window_load(Window *window)
 	layer_add_child(window_layer, text_layer_get_layer(wd_layer));
         
 	//Init bluetooth radio
-	radio_layer = bitmap_layer_create(GRect(106, 130, 31, 33));
+	radio_layer = bitmap_layer_create(GRect(113, 125, 31, 33));
 	bitmap_layer_set_background_color(radio_layer, GColorClear);
 	bitmap_layer_set_bitmap(radio_layer, radio);
 	bitmap_layer_set_compositing_mode(radio_layer, GCompOpSet);
@@ -660,6 +684,19 @@ void handle_init(void)
 	tick_timer_service_subscribe(SECOND_UNIT, (TickHandler)tick_handler);
 	battery_state_service_subscribe(&battery_state_service_handler);
 	bluetooth_connection_service_subscribe(&bluetooth_connection_handler);
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "Subscribe Health");
+  #if defined(PBL_HEALTH)
+  // Attempt to subscribe 
+  if(!health_service_events_subscribe(handle_health, NULL)) {
+    APP_LOG(APP_LOG_LEVEL_ERROR, "Health not available!");
+  } else {
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Health available!");
+    // health_service_set_heart_rate_sample_period(0);
+  }
+  #else
+  APP_LOG(APP_LOG_LEVEL_ERROR, "Health not available!");
+  #endif 
+
 
 	//Subscribe messages
 	app_message_register_inbox_received(in_received_handler);
@@ -677,7 +714,8 @@ void handle_deinit(void)
 	tick_timer_service_unsubscribe();
 	battery_state_service_unsubscribe();
 	bluetooth_connection_service_unsubscribe();
-
+  health_service_events_unsubscribe();
+  
 	window_destroy(sec_window);
 	window_destroy(window);
 }
