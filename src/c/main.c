@@ -65,12 +65,13 @@ TextLayer *ddmm_layer, *yyyy_layer, *hhmm_layer, *ss_layer, *wd_layer;
 BitmapLayer *radio_layer, *battery_layer;
 InverterLayer *inv_layer, *sec_inv_layer;
 
-static GBitmap *background, *radio, *batteryAll, *batteryAkt;
+static GBitmap *background, *radio, *batteryAll, *weekdayAll, *batteryAkt;
 static GFont digitS, digitM, digitL, WeatherF, arial9;
 
 char ddmmBuffer[] = "00-00", yyyyBuffer[] = "0000", hhmmBuffer[] = "00:00", ssBuffer[] = "00", wdBuffer[] = "XXXX";
 static uint8_t aktBatt, aktBattAnim;
 static AppTimer *timer_weather, *timer_batt;
+int dayNum=0;
 HealthValue stepsValue = 0;
 //-----------------------------------------------------------------------------------------------------------------------
 char *upcase(char *str) {
@@ -183,14 +184,18 @@ static void background_layer_update_callback(Layer *layer, GContext* ctx)
 
 	//DD
 	GBitmap *bmpTmp = gbitmap_create_as_sub_bitmap(batteryAll, GRect(0, 115, 12, 5));
-	graphics_draw_bitmap_in_rect(ctx, bmpTmp, GRect(CfgData.datefmt != 3 ? 17 : 48, 5, 12, 5));
+	graphics_draw_bitmap_in_rect(ctx, bmpTmp, GRect(CfgData.datefmt != 3 ? 17 : 48, 20, 12, 5));
 	gbitmap_destroy(bmpTmp);
 	
 	//MM
 	bmpTmp = gbitmap_create_as_sub_bitmap(batteryAll, GRect(0, 120, 12, 5));
-	graphics_draw_bitmap_in_rect(ctx, bmpTmp, GRect(CfgData.datefmt != 3 ? 48 : 17, 5, 12, 5));
+	graphics_draw_bitmap_in_rect(ctx, bmpTmp, GRect(CfgData.datefmt != 3 ? 48 : 17, 20, 12, 5));
 	gbitmap_destroy(bmpTmp);
 	
+  //STEP
+	bmpTmp = gbitmap_create_as_sub_bitmap(batteryAll, GRect(0, 125, 21, 5));
+	graphics_draw_bitmap_in_rect(ctx, bmpTmp, GRect(100, 20, 21, 5));
+	gbitmap_destroy(bmpTmp);
 	//DST
 	if (CfgData.isdst)
 	{
@@ -209,7 +214,7 @@ static void background_layer_update_callback(Layer *layer, GContext* ctx)
       app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Background Layer Update: Weather CfgData.w_time != 0");
 			char sTemp[] = "-999";
 			snprintf(sTemp, sizeof(sTemp), "%d", (int16_t)((double)CfgData.w_temp * (CfgData.isunit ? 1.8 : 1) + (CfgData.isunit ? 32 : 0))); //Â°C or Â°F?
-			graphics_draw_text(ctx, sTemp, digitS, GRect(82, 54 - (CfgData.cond ? 2 : 0), 50, 32), GTextOverflowModeFill, GTextAlignmentRight, NULL);
+			graphics_draw_text(ctx, sTemp, digitS, GRect(83, 54 - (CfgData.cond ? 2 : 0), 50, 32), GTextOverflowModeFill, GTextAlignmentRight, NULL);
 			graphics_draw_text(ctx, !CfgData.isunit ? "_" : "`", WeatherF, GRect(134, 50 - (CfgData.cond ? 2 : 0), 18, 32), GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 
 			GSize sz = graphics_text_layout_get_content_size(CfgData.w_icon, WeatherF, rc, GTextOverflowModeFill, GTextAlignmentCenter);
@@ -253,10 +258,12 @@ static void background_layer_update_callback(Layer *layer, GContext* ctx)
   snprintf(stepsTemp, sizeof(stepsTemp), "%d", (int) stepsValue);  
   APP_LOG(APP_LOG_LEVEL_DEBUG, "Steps: %s", stepsTemp);
   //text_layer_set_text(yyyy_layer, stepsTemp);
-  graphics_draw_text(ctx, stepsTemp, digitS, GRect(78, 5, 60, 32), GTextOverflowModeFill, GTextAlignmentRight, NULL);
+  graphics_draw_text(ctx, stepsTemp, digitS, GRect(78, 22, 60, 32), GTextOverflowModeFill, GTextAlignmentRight, NULL);				
   
-  
-				
+  // WEEK_DAY IMAGE  
+  bmpTmp = gbitmap_create_as_sub_bitmap(weekdayAll, GRect(0, dayNum*24 + dayNum, 42, 24));
+	graphics_draw_bitmap_in_rect(ctx, bmpTmp, GRect(20, 139, 42, 24));
+	gbitmap_destroy(bmpTmp);  
 }
 //-----------------------------------------------------------------------------------------------------------------------
 void tick_handler(struct tm *tick_time, TimeUnits units_changed)
@@ -289,12 +296,15 @@ void tick_handler(struct tm *tick_time, TimeUnits units_changed)
 		//snprintf(ddmmBuffer, sizeof(ddmmBuffer), "%d", rc.origin.x);
 		text_layer_set_text(ddmm_layer, ddmmBuffer);
 		
-		strftime(wdBuffer, sizeof(wdBuffer), "%a", tick_time);
+		//strftime(wdBuffer, sizeof(wdBuffer), "%a", tick_time);
 		//strcpy(wdBuffer, "sáb");
-		upcase(wdBuffer);
-		text_layer_set_text(wd_layer, wdBuffer);
-		APP_LOG(APP_LOG_LEVEL_DEBUG, "WeekDay: %s", wdBuffer);
-
+		//upcase(wdBuffer);
+		//text_layer_set_text(wd_layer, wdBuffer);    
+    // WEEK_DAY IMAGE
+    strftime(wdBuffer, sizeof(wdBuffer), "%u", tick_time);
+    dayNum = atoi(wdBuffer)-1;
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "WeekDay: %s", wdBuffer);
+    
 		//strftime(yyyyBuffer, sizeof(yyyyBuffer), "%Y", tick_time);
 		//text_layer_set_text(yyyy_layer, yyyyBuffer);
 
@@ -548,6 +558,7 @@ void window_load(Window *window)
 {
 	background = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BACKGROUND);
 	batteryAll = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BATTERIES);
+  weekdayAll = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_WEEKDAY_RUS_42_144);
 	radio = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_RADIO);
 	
 	digitS = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_DIGITAL_25));
@@ -564,7 +575,7 @@ void window_load(Window *window)
 	layer_add_child(window_layer, background_layer);
 
 	//DAY+MONTH layer
-	ddmm_layer = text_layer_create(GRect(2, 5, 70, 32));
+	ddmm_layer = text_layer_create(GRect(2, 22, 70, 32));
 	text_layer_set_background_color(ddmm_layer, GColorClear);
 	text_layer_set_text_color(ddmm_layer, GColorBlack);
 	text_layer_set_text_alignment(ddmm_layer, GTextAlignmentCenter);
@@ -580,7 +591,7 @@ void window_load(Window *window)
 	//layer_add_child(window_layer, text_layer_get_layer(yyyy_layer));
         
 	//HOUR+MINUTE layer
-	hhmm_layer = text_layer_create(GRect(0, 53, 110, 75));
+	hhmm_layer = text_layer_create(GRect(8, 53, 110, 75));
 	text_layer_set_background_color(hhmm_layer, GColorClear);
 	text_layer_set_text_color(hhmm_layer, GColorBlack);
 	text_layer_set_text_alignment(hhmm_layer, GTextAlignmentLeft);
@@ -601,12 +612,12 @@ void window_load(Window *window)
 	layer_add_child(window_layer, bitmap_layer_get_layer(battery_layer));	
 	
 	//WEEKDAY layer
-	wd_layer = text_layer_create(GRect(0, 138, 84, 40));
-	text_layer_set_background_color(wd_layer, GColorClear);
-	text_layer_set_text_color(wd_layer, GColorBlack);
-	text_layer_set_text_alignment(wd_layer, GTextAlignmentCenter);
-	text_layer_set_font(wd_layer, digitM);
-	layer_add_child(window_layer, text_layer_get_layer(wd_layer));
+	//wd_layer = text_layer_create(GRect(0, 138, 84, 40));
+	//text_layer_set_background_color(wd_layer, GColorClear);
+	//text_layer_set_text_color(wd_layer, GColorBlack);
+	//text_layer_set_text_alignment(wd_layer, GTextAlignmentCenter);
+	//text_layer_set_font(wd_layer, digitM);
+	//layer_add_child(window_layer, text_layer_get_layer(wd_layer));
         
 	//Init bluetooth radio
 	radio_layer = bitmap_layer_create(GRect(113, 125, 31, 33));
@@ -666,6 +677,8 @@ void handle_init(void)
 		strcpy(sLang, "es");
 	else if (strncmp(sLocale, "fr", 2) == 0)
 		strcpy(sLang, "fr");
+  else if (strncmp(sLocale, "ru", 2) == 0)
+		strcpy(sLang, "ru");
 	APP_LOG(APP_LOG_LEVEL_DEBUG, "Time locale is set to: %s/%s", sLocale, sLang);
 
 	window = window_create();
