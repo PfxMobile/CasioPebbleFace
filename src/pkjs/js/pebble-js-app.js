@@ -92,7 +92,9 @@ Pebble.addEventListener('appmessage', function(e) {
 			navigator.geolocation.getCurrentPosition(locationSuccess, locationError, locationOptions);
 		else
 			updateWeather();
-	}
+	}else if ('calendar' in e.payload){
+    updateCalendar();  
+  }
 });
 //-----------------------------------------------------------------------------------------------------------------------
 function updateWeather() {
@@ -123,6 +125,30 @@ function updateWeather() {
 					"w_temp": temp,
 					"w_icon": weatherIcon[icon],
 					"w_cond": cond
+				});
+			}
+		}
+	};
+	req.send(null);
+}
+//-----------------------------------------------------------------------------------------------------------------------
+function updateCalendar() {
+	console.log("Updating calendar");
+	var req = new XMLHttpRequest();
+	var URL = "https://calout.azurewebsites.net/calendar";
+  
+	req.open("GET", URL, true);
+  req.responseType = 'json';
+	req.onload = function(e) {
+		if (req.readyState == 4) {
+			if (req.status == 200) {
+				var calendarResponse = req.response;
+				var hours = ''+calendarResponse.hours;
+        var subject = ''+calendarResponse.subject;
+        console.log("Got Calendar Data: " + subject + ", Due hours: " + hours);
+				sendMessageToPebble({
+					"c_subj": subject,
+					"c_hours": hours				
 				});
 			}
 		}

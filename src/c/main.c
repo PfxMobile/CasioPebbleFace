@@ -18,7 +18,10 @@ enum ConfigKeys {
 	W_TIME=90,
 	W_TEMP=91,
 	W_ICON=92,
-	W_COND=93
+	W_COND=93,
+  C_CALENDAR=94,
+  C_SUBJ=95,
+  C_HOURS=96
 };
 
 typedef struct {
@@ -31,10 +34,12 @@ typedef struct {
 	bool isunit;
 	uint32_t cityid;
 	uint32_t w_time;
-	int16_t w_temp;
-	char w_icon[2], w_cond[50];
+	int16_t w_temp;  
+	char w_icon[2], w_cond[50],c_subj[50],c_hours[10];
 	bool w_UpdateRetry;
+  bool c_Updating;
 	bool s_Charging;
+  bool ready;
 } __attribute__((__packed__)) CfgDta_t;
 
 static CfgDta_t CfgData = {
@@ -57,6 +62,10 @@ static CfgDta_t CfgData = {
 	.w_cond = "",
 	.w_UpdateRetry = false,
 	.s_Charging = false,
+  .c_Updating = false,
+  .c_subj = "",
+  .c_hours = "",
+  .ready = false,
 };
 
 Window *window, *sec_window;
@@ -66,11 +75,11 @@ BitmapLayer *radio_layer, *battery_layer;
 InverterLayer *inv_layer, *sec_inv_layer;
 
 static GBitmap *background, *radio, *batteryAll, *weekdayAll, *batteryAkt;
-static GFont digitS, digitM, digitL, WeatherF, arial9;
+static GFont digitS, digitM, digitL, WeatherF, arial9, arial12;
 
 char ddmmBuffer[] = "00-00", yyyyBuffer[] = "0000", hhmmBuffer[] = "00:00", ssBuffer[] = "00", wdBuffer[] = "XXXX";
 static uint8_t aktBatt, aktBattAnim;
-static AppTimer *timer_weather, *timer_batt;
+static AppTimer *timer_weather, *timer_batt, *timer_calendar;
 int dayNum=0;
 HealthValue stepsValue = 0;
 //-----------------------------------------------------------------------------------------------------------------------
@@ -260,9 +269,19 @@ static void background_layer_update_callback(Layer *layer, GContext* ctx)
   //text_layer_set_text(yyyy_layer, stepsTemp);
   graphics_draw_text(ctx, stepsTemp, digitS, GRect(78, 22, 60, 32), GTextOverflowModeFill, GTextAlignmentRight, NULL);				
   
+  
+  //Calendar
+	if(!CfgData.c_Updating)
+	{
+		char calendTemp[] = "Sample Calendar event in 24 hours";
+		snprintf(calendTemp, sizeof(calendTemp), "%s in %sh", CfgData.c_subj, CfgData.c_hours);
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Caledar draw %s", calendTemp);
+		graphics_draw_text(ctx, calendTemp, arial12, GRect(10, 56, 110, 10), GTextOverflowModeFill, GTextAlignmentLeft, NULL);
+	}
+  
   // WEEK_DAY IMAGE  
-  bmpTmp = gbitmap_create_as_sub_bitmap(weekdayAll, GRect(0, dayNum*24 + dayNum, 42, 24));
-	graphics_draw_bitmap_in_rect(ctx, bmpTmp, GRect(20, 139, 42, 24));
+  bmpTmp = gbitmap_create_as_sub_bitmap(weekdayAll, GRect(0, dayNum*19 + dayNum, 33, 19));
+	graphics_draw_bitmap_in_rect(ctx, bmpTmp, GRect(10, 142, 33, 19));
 	gbitmap_destroy(bmpTmp);  
 }
 //-----------------------------------------------------------------------------------------------------------------------
@@ -358,11 +377,52 @@ static bool update_weather()
 	return true;
 }
 //-----------------------------------------------------------------------------------------------------------------------
+static bool update_calendar() 
+{	
+  if(!CfgData.ready){
+     app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "JS not ready - return");   
+     return false;
+  }
+  if(CfgData.c_Updating ){
+    app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Calendar updating in progress - return");
+    return false;
+  }else{
+    app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Start calendar updating");
+    CfgData.c_Updating = true;
+  }
+    
+	update_all();
+	
+	DictionaryIterator *iter;
+	app_message_outbox_begin(&iter);
+
+	if (iter == NULL) 
+	{
+		app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Iter is NULL!");
+		return false;
+	};
+
+	Tuplet val_ckey = TupletInteger(C_CALENDAR, 0);
+	dict_write_tuplet(iter, &val_ckey);
+	dict_write_end(iter);
+
+	app_message_outbox_send();
+	app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Send message with data: C_CALENDAR", 0);
+	return true;
+}
+//-----------------------------------------------------------------------------------------------------------------------
+static void timerCallbackCalendar(void *data) 
+{    
+	  update_calendar();		
+		timer_calendar = app_timer_register(60000*60, timerCallbackCalendar, NULL); //1h static update	
+}
+
+//-----------------------------------------------------------------------------------------------------------------------
 static void timerCallbackWeather(void *data) 
 {
 	if (CfgData.w_UpdateRetry && !layer_get_hidden(bitmap_layer_get_layer(radio_layer)))
 	{
-		update_weather();
+		update_weather();    
 		timer_weather = app_timer_register(30000, timerCallbackWeather, NULL); //Try again in 30 sec
 	}
 	else
@@ -371,6 +431,7 @@ static void timerCallbackWeather(void *data)
 		timer_weather = app_timer_register(60000*60, timerCallbackWeather, NULL); //1h static update
 	}
 }
+
 //-----------------------------------------------------------------------------------------------------------------------
 static void update_configuration(void)
 {
@@ -418,10 +479,17 @@ static void update_configuration(void)
 
 	if (persist_exists(W_COND))
 		persist_read_string(W_COND, CfgData.w_cond, sizeof(CfgData.w_cond));
+  
+  if (persist_exists(C_SUBJ))
+    	persist_read_string(C_SUBJ, CfgData.c_subj, sizeof(CfgData.c_subj));
+  
+  if (persist_exists(C_HOURS))
+		persist_read_string(C_HOURS, CfgData.c_hours, sizeof(CfgData.c_hours));
 
 	app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Curr Conf #1: inv:%d, showsec:%d, battdgt:%d, showbatt:%d, vibr:%d, datefmt:%d, weather:%d", CfgData.inv, CfgData.showsec, CfgData.battdgt, CfgData.showbatt, CfgData.vibr, CfgData.datefmt, CfgData.weather);
 	app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Curr Conf #2: isunit:%d, cityid:%d", CfgData.isunit, (int)CfgData.cityid);
 	app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Weather Data: w_time:%d, w_temp:%d, w_icon:%s, w_cond:%s", (int)CfgData.w_time, CfgData.w_temp, CfgData.w_icon, CfgData.w_cond);
+  app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Calendar Data: calendar :c_subj%s, c_hours:%s", CfgData.c_subj, CfgData.c_hours);
 	
 	Layer *window_layer = window_get_root_layer(window);
 
@@ -449,7 +517,7 @@ static void update_configuration(void)
 
 	//Set Battery state
 	BatteryChargeState btchg = battery_state_service_peek();
-	battery_state_service_handler(btchg);
+	battery_state_service_handler(btchg);    
 	
 	//Set Bluetooth state
 	bool connected = bluetooth_connection_service_peek();
@@ -462,7 +530,7 @@ static void update_configuration(void)
 			timer_weather = app_timer_register(100, timerCallbackWeather, NULL);
 		else
 			timer_weather = app_timer_register((60*60-(tmAkt-CfgData.w_time))*1000, timerCallbackWeather, NULL);
-	}
+	}  
 }
 //-----------------------------------------------------------------------------------------------------------------------
 void in_received_handler(DictionaryIterator *received, void *ctx)
@@ -479,6 +547,9 @@ void in_received_handler(DictionaryIterator *received, void *ctx)
 		switch (akt_tuple->key)	{
 		case JS_READY:
 			CfgData.w_UpdateRetry = true;
+      CfgData.ready = true;
+      //Start calendar
+	    timerCallbackCalendar(NULL);
 			break;
 		case C_INV:
 			persist_write_bool(C_INV, strcmp(akt_tuple->value->cstring, "yes") == 0);
@@ -537,6 +608,14 @@ void in_received_handler(DictionaryIterator *received, void *ctx)
 		case W_COND:
 			persist_write_string(W_COND, akt_tuple->value->cstring);
 			break;
+    case C_SUBJ:
+      CfgData.c_Updating = false;
+			persist_write_string(C_SUBJ, akt_tuple->value->cstring);
+      break;
+    case C_HOURS:
+      CfgData.c_Updating = false;
+      persist_write_string(C_HOURS, akt_tuple->value->cstring);			
+			break;
 		}
 		
 		akt_tuple = dict_read_next(received);
@@ -558,7 +637,7 @@ void window_load(Window *window)
 {
 	background = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BACKGROUND);
 	batteryAll = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BATTERIES);
-  weekdayAll = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_WEEKDAY_RUS_42_144);
+  weekdayAll = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_WEEKDAY_32_139);
 	radio = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_RADIO);
 	
 	digitS = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_DIGITAL_25));
@@ -566,6 +645,7 @@ void window_load(Window *window)
 	digitL = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_DIGITAL_CASIO_66));
  	WeatherF = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_WEATHER_32));
 	arial9 = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_ARIAL_BOLD_9));
+  arial12 = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_ARIAL_BOLD_11));
  
 	Layer *window_layer = window_get_root_layer(window);
 
@@ -723,6 +803,7 @@ void handle_deinit(void)
 {
 	app_timer_cancel(timer_weather);
 	app_timer_cancel(timer_batt);
+  app_timer_cancel(timer_calendar);
 	app_message_deregister_callbacks();
 	tick_timer_service_unsubscribe();
 	battery_state_service_unsubscribe();
