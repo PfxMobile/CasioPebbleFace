@@ -1,5 +1,6 @@
 var initialised = false;
 var CityID = 0, posLat = "0", posLon = "0", lang = "en";
+var calendarPending = false , weatherPending = false, messageData = {};
 var weatherIcon = {
     "01d" : 'I',	//clear sky (day)
     "02d" : '"',	//few clouds (day)
@@ -97,10 +98,19 @@ Pebble.addEventListener('appmessage', function(e) {
   }
 });
 //-----------------------------------------------------------------------------------------------------------------------
-function updateWeather() {
+function checkSendMessage(){
+  console.log("checkSendMessage");
+  if(!calendarPending && !weatherPending){
+    console.log("sendMessageToPebble");
+     sendMessageToPebble(messageData);   
+  }
+}
+//-----------------------------------------------------------------------------------------------------------------------
+function updateWeather() {  
 	console.log("Updating weather");
+  updateCalendar(); 
 	var req = new XMLHttpRequest();
-	var URL = "http://api.openweathermap.org/data/2.5/weather?APPID=9a4eed6c813f6d55d0699c148f7b575a&";
+	var URL = "http://api.openweathermap.org/data/2.5/weather?APPID=a9423f401fa1a50cbef532db45360841&";
 	
 	if (CityID !== 0)
 		URL += "id="+CityID.toString();
@@ -111,9 +121,11 @@ function updateWeather() {
 	
 	URL += "&units=metric&lang=" + lang + "&type=accurate";
 	console.log("UpdateURL: " + URL);
+  weatherPending = true;
 	req.open("GET", URL, true);
 	req.onload = function(e) {
 		if (req.readyState == 4) {
+      weatherPending = false;
 			if (req.status == 200) {
 				var response = JSON.parse(req.responseText);
 				var temp = Math.round(response.main.temp);//-273.15
@@ -121,11 +133,10 @@ function updateWeather() {
 				var cond = response.weather[0].description;
 				var name = response.name;
         console.log("Got Weather Data for City: " + name + ", Temp: " + temp + ", Icon:" + icon + weatherIcon[icon]+", Cond:"+cond);
-				sendMessageToPebble({
-					"w_temp": temp,
-					"w_icon": weatherIcon[icon],
-					"w_cond": cond
-				});
+        messageData["w_temp"]= temp;
+        messageData["w_icon"]= weatherIcon[icon];
+        messageData["w_cond"]= cond;
+        checkSendMessage();				
 			}
 		}
 	};
@@ -136,20 +147,19 @@ function updateCalendar() {
 	console.log("Updating calendar");
 	var req = new XMLHttpRequest();
 	var URL = "https://calout.azurewebsites.net/calendar";
-  
+  calendarPending = true;
 	req.open("GET", URL, true);
   req.responseType = 'json';
 	req.onload = function(e) {
 		if (req.readyState == 4) {
+      calendarPending = false;
 			if (req.status == 200) {
 				var calendarResponse = req.response;
 				var hours = ''+calendarResponse.hours;
         var subject = ''+calendarResponse.subject;
         console.log("Got Calendar Data: " + subject + ", Due hours: " + hours);
-				sendMessageToPebble({
-					"c_subj": subject,
-					"c_hours": hours				
-				});
+        messageData["c_subj"]= subject;
+        checkSendMessage();				
 			}
 		}
 	};

@@ -1,6 +1,6 @@
 #include <pebble.h>
 #include <pebble-effect-layer/pebble-effect-layer.h>
-#define DEBUG 1
+#define DEBUG 0
 
 enum ConfigKeys {
 	JS_READY=0,
@@ -35,11 +35,13 @@ typedef struct {
 	uint32_t cityid;
 	uint32_t w_time;
 	int16_t w_temp;  
-	char w_icon[2], w_cond[50],c_subj[50],c_hours[10];
+	char w_icon[2], w_cond[50],c_subj[80],c_hours[10];
 	bool w_UpdateRetry;
-  bool c_Updating;
+  bool c_UpdateRetry;
+  bool msg_busy;  
 	bool s_Charging;
   bool ready;
+  bool isNight;
 } __attribute__((__packed__)) CfgDta_t;
 
 static CfgDta_t CfgData = {
@@ -47,7 +49,7 @@ static CfgDta_t CfgData = {
 	.showsec = 0,
 	.showbatt = 100,
 	.vibr = false,
-	.vibr_bt = true,
+	.vibr_bt = false,
 	.battdgt = true,	
 	.datefmt = 1,
 	.isdst = false,
@@ -55,33 +57,48 @@ static CfgDta_t CfgData = {
 	.weather = true,
 	.cond = false,
 	.isunit = false,
-	.cityid = 0,
+	.cityid = 625144,
 	.w_time = 0,
 	.w_temp = 0,
 	.w_icon = " ",
 	.w_cond = "",
 	.w_UpdateRetry = false,
-	.s_Charging = false,
-  .c_Updating = false,
+  .c_UpdateRetry=false,
+	.s_Charging = false,  
   .c_subj = "",
   .c_hours = "",
   .ready = false,
+  .msg_busy = false,
+  .isNight = false
 };
 
 Window *window, *sec_window;
 Layer *background_layer; 
 TextLayer *ddmm_layer, *yyyy_layer, *hhmm_layer, *ss_layer, *wd_layer;
-BitmapLayer *radio_layer, *battery_layer;
+BitmapLayer *radio_layer, *connection_layer,*battery_layer;
 InverterLayer *inv_layer, *sec_inv_layer;
 
-static GBitmap *background, *radio, *batteryAll, *weekdayAll, *batteryAkt;
+static GBitmap *background, *radio,*connection, *batteryAll, *weekdayAll, *batteryAkt;
 static GFont digitS, digitM, digitL, WeatherF, arial9, arial12;
 
 char ddmmBuffer[] = "00-00", yyyyBuffer[] = "0000", hhmmBuffer[] = "00:00", ssBuffer[] = "00", wdBuffer[] = "XXXX";
 static uint8_t aktBatt, aktBattAnim;
-static AppTimer *timer_weather, *timer_batt, *timer_calendar;
+static AppTimer *timer_weather, *timer_batt;
 int dayNum=0;
 HealthValue stepsValue = 0;
+static char s_status[256];
+//-----------------------------------------------------------------------------------------------------------------------
+static void append_status(const char * message, AppMessageResult result) {  
+  
+  if(result==APP_MSG_BUSY){
+    CfgData.msg_busy = true;    
+    layer_set_hidden(bitmap_layer_get_layer(connection_layer), false);  
+  }else{
+    CfgData.msg_busy = false;      
+    layer_set_hidden(bitmap_layer_get_layer(connection_layer), true);  
+  }
+  app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Status message:%s result:%d",s_status,result);  
+}
 //-----------------------------------------------------------------------------------------------------------------------
 char *upcase(char *str) {
     for (int i = 0; str[i] != 0; i++) {
@@ -163,8 +180,8 @@ void battery_state_service_handler(BatteryChargeState charge_state)
 }
 //-----------------------------------------------------------------------------------------------------------------------
 void bluetooth_connection_handler(bool connected)
-{
-	layer_set_hidden(bitmap_layer_get_layer(radio_layer), connected != true);
+{  
+	layer_set_hidden(bitmap_layer_get_layer(radio_layer), connected != true); 
 	update_all();
 		
 	if (!connected && CfgData.vibr_bt)
@@ -184,7 +201,7 @@ static void handle_health(HealthEventType event, void *context) {
 //-----------------------------------------------------------------------------------------------------------------------
 static void background_layer_update_callback(Layer *layer, GContext* ctx) 
 {
-	app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Background Layer Update");
+	if (DEBUG) app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Background Layer Update");
 	graphics_context_set_text_color(ctx, GColorBlack);
 
 	//Background
@@ -214,21 +231,21 @@ static void background_layer_update_callback(Layer *layer, GContext* ctx)
 	}
 	
 	//Weather
-	GRect rc = GRect(110, 80, 34, 34);
+	GRect rc = GRect(110, 82, 34, 34);
 	if (CfgData.weather)
 	{
-    app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Background Layer Update: Weather");
+    if (DEBUG) app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Background Layer Update: Weather");
 		if (CfgData.w_time != 0)
 		{
-      app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Background Layer Update: Weather CfgData.w_time != 0");
+      if (DEBUG) app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Background Layer Update: Weather CfgData.w_time != 0");
 			char sTemp[] = "-999";
 			snprintf(sTemp, sizeof(sTemp), "%d", (int16_t)((double)CfgData.w_temp * (CfgData.isunit ? 1.8 : 1) + (CfgData.isunit ? 32 : 0))); //Â°C or Â°F?
-			graphics_draw_text(ctx, sTemp, digitS, GRect(83, 54 - (CfgData.cond ? 2 : 0), 50, 32), GTextOverflowModeFill, GTextAlignmentRight, NULL);
-			graphics_draw_text(ctx, !CfgData.isunit ? "_" : "`", WeatherF, GRect(134, 50 - (CfgData.cond ? 2 : 0), 18, 32), GTextOverflowModeFill, GTextAlignmentCenter, NULL);
+			graphics_draw_text(ctx, sTemp, digitS, GRect(83, 60 - (CfgData.cond ? 2 : 0), 50, 32), GTextOverflowModeFill, GTextAlignmentRight, NULL);
+			graphics_draw_text(ctx, !CfgData.isunit ? "_" : "`", WeatherF, GRect(134, 56 - (CfgData.cond ? 2 : 0), 18, 32), GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 
 			GSize sz = graphics_text_layout_get_content_size(CfgData.w_icon, WeatherF, rc, GTextOverflowModeFill, GTextAlignmentCenter);
-      app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Background Layer Update: Get icon sz h:%d w:%d:",sz.w,sz.h);
-      app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Background Layer Update: Get icon coordinates x:%d y:%d:",rc.origin.x+rc.size.w/2-sz.w/2,rc.origin.y+rc.size.h/2-sz.h/2);
+      if (DEBUG) app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Background Layer Update: Get icon sz h:%d w:%d:",sz.w,sz.h);
+      if (DEBUG) app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Background Layer Update: Get icon coordinates x:%d y:%d:",rc.origin.x+rc.size.w/2-sz.w/2,rc.origin.y+rc.size.h/2-sz.h/2);
       int defaultIconSize = 28;
 			// graphics_draw_text(ctx, CfgData.w_icon, WeatherF, GRect(rc.origin.x+rc.size.w/2-sz.w/2, rc.origin.y+rc.size.h/2-sz.h/2, sz.w, sz.h), GTextOverflowModeFill, GTextAlignmentCenter, NULL);
       graphics_draw_text(ctx, CfgData.w_icon, WeatherF, GRect(rc.origin.x+rc.size.w/2-defaultIconSize/2, rc.origin.y+rc.size.h/2-defaultIconSize/2, defaultIconSize, defaultIconSize), GTextOverflowModeFill, GTextAlignmentCenter, NULL);
@@ -241,7 +258,7 @@ static void background_layer_update_callback(Layer *layer, GContext* ctx)
 		}
 		else
 		{
-       app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Background Layer Update: Weather ELSE");
+      if (DEBUG) app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Background Layer Update: Weather ELSE");
 			GSize sz = graphics_text_layout_get_content_size("h", WeatherF, rc, GTextOverflowModeFill, GTextAlignmentCenter);
 			graphics_draw_text(ctx, "h", WeatherF, GRect(rc.origin.x+rc.size.w/2-sz.w/2, rc.origin.y+rc.size.h/2-sz.h/2, sz.w, sz.h), GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 		}
@@ -265,18 +282,18 @@ static void background_layer_update_callback(Layer *layer, GContext* ctx)
   // Steps
   char stepsTemp[] = "0000";	
   snprintf(stepsTemp, sizeof(stepsTemp), "%d", (int) stepsValue);  
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "Steps: %s", stepsTemp);
+  if (DEBUG) APP_LOG(APP_LOG_LEVEL_DEBUG, "Steps: %s", stepsTemp);
   //text_layer_set_text(yyyy_layer, stepsTemp);
   graphics_draw_text(ctx, stepsTemp, digitS, GRect(78, 22, 60, 32), GTextOverflowModeFill, GTextAlignmentRight, NULL);				
   
   
   //Calendar
-	if(!CfgData.c_Updating)
+	if(strlen(CfgData.c_subj)>0)
 	{
-		char calendTemp[] = "Sample Calendar event in 24 hours";
-		snprintf(calendTemp, sizeof(calendTemp), "%s in %sh", CfgData.c_subj, CfgData.c_hours);
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "Caledar draw %s", calendTemp);
-		graphics_draw_text(ctx, calendTemp, arial12, GRect(10, 56, 110, 10), GTextOverflowModeFill, GTextAlignmentLeft, NULL);
+		char calendTemp[] = "Simple Sample Calendar event in 24 hours.";
+		snprintf(calendTemp, sizeof(calendTemp), "%s", CfgData.c_subj);
+    if (DEBUG) APP_LOG(APP_LOG_LEVEL_DEBUG, "Caledar draw %s", calendTemp);
+		graphics_draw_text(ctx, calendTemp, arial9, GRect(10, 56, 145, 10), GTextOverflowModeFill, GTextAlignmentLeft, NULL);
 	}
   
   // WEEK_DAY IMAGE  
@@ -322,7 +339,7 @@ void tick_handler(struct tm *tick_time, TimeUnits units_changed)
     // WEEK_DAY IMAGE
     strftime(wdBuffer, sizeof(wdBuffer), "%u", tick_time);
     dayNum = atoi(wdBuffer)-1;
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "WeekDay: %s", wdBuffer);
+    if (DEBUG) APP_LOG(APP_LOG_LEVEL_DEBUG, "WeekDay: %s", wdBuffer);
     
 		//strftime(yyyyBuffer, sizeof(yyyyBuffer), "%Y", tick_time);
 		//text_layer_set_text(yyyy_layer, yyyyBuffer);
@@ -333,7 +350,9 @@ void tick_handler(struct tm *tick_time, TimeUnits units_changed)
 			CfgData.isdst = (tick_time->tm_isdst > 0);
 			update_all();
 		}
-		
+		//Check Night 
+    CfgData.isNight = (tick_time->tm_hour >= 1 && tick_time->tm_hour <= 5);			    
+    if (DEBUG) app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Night tm_hour %d",tick_time->tm_hour); 
 		//Hourly vibrate
 		if (CfgData.vibr && tick_time->tm_min == 0)
 			vibes_double_pulse();
@@ -357,66 +376,28 @@ static bool update_weather()
 {
 	strcpy(CfgData.w_icon, "h");
 	strcpy(CfgData.w_cond, "Updating...");
-	update_all();
-	
+  if(CfgData.isNight){
+    if (DEBUG) app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Night mode ON - no updates");   
+    return false;
+  }  
+	update_all();	
 	DictionaryIterator *iter;
-	app_message_outbox_begin(&iter);
-
-	if (iter == NULL) 
-	{
-		app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Iter is NULL!");
-		return false;
-	};
-
+	AppMessageResult begin_result = app_message_outbox_begin(&iter);
+  if (begin_result == APP_MSG_OK) {
+    append_status("update_weather success", APP_MSG_OK);
+  } else {
+    append_status("update_weather failed", begin_result);
+    return false;
+  }
+	
 	Tuplet val_ckey = TupletInteger(C_CKEY, CfgData.cityid);
 	dict_write_tuplet(iter, &val_ckey);
 	dict_write_end(iter);
 
 	app_message_outbox_send();
-	app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Send message with data: c_ckey=%d", (int)CfgData.cityid);
+	if (DEBUG) app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Send message with data: c_ckey=%d", (int)CfgData.cityid);
 	return true;
 }
-//-----------------------------------------------------------------------------------------------------------------------
-static bool update_calendar() 
-{	
-  if(!CfgData.ready){
-     app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "JS not ready - return");   
-     return false;
-  }
-  if(CfgData.c_Updating ){
-    app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Calendar updating in progress - return");
-    return false;
-  }else{
-    app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Start calendar updating");
-    CfgData.c_Updating = true;
-  }
-    
-	update_all();
-	
-	DictionaryIterator *iter;
-	app_message_outbox_begin(&iter);
-
-	if (iter == NULL) 
-	{
-		app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Iter is NULL!");
-		return false;
-	};
-
-	Tuplet val_ckey = TupletInteger(C_CALENDAR, 0);
-	dict_write_tuplet(iter, &val_ckey);
-	dict_write_end(iter);
-
-	app_message_outbox_send();
-	app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Send message with data: C_CALENDAR", 0);
-	return true;
-}
-//-----------------------------------------------------------------------------------------------------------------------
-static void timerCallbackCalendar(void *data) 
-{    
-	  update_calendar();		
-		timer_calendar = app_timer_register(60000*60, timerCallbackCalendar, NULL); //1h static update	
-}
-
 //-----------------------------------------------------------------------------------------------------------------------
 static void timerCallbackWeather(void *data) 
 {
@@ -486,10 +467,10 @@ static void update_configuration(void)
   if (persist_exists(C_HOURS))
 		persist_read_string(C_HOURS, CfgData.c_hours, sizeof(CfgData.c_hours));
 
-	app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Curr Conf #1: inv:%d, showsec:%d, battdgt:%d, showbatt:%d, vibr:%d, datefmt:%d, weather:%d", CfgData.inv, CfgData.showsec, CfgData.battdgt, CfgData.showbatt, CfgData.vibr, CfgData.datefmt, CfgData.weather);
-	app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Curr Conf #2: isunit:%d, cityid:%d", CfgData.isunit, (int)CfgData.cityid);
-	app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Weather Data: w_time:%d, w_temp:%d, w_icon:%s, w_cond:%s", (int)CfgData.w_time, CfgData.w_temp, CfgData.w_icon, CfgData.w_cond);
-  app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Calendar Data: calendar :c_subj%s, c_hours:%s", CfgData.c_subj, CfgData.c_hours);
+	if (DEBUG) app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Curr Conf #1: inv:%d, showsec:%d, battdgt:%d, showbatt:%d, vibr:%d, datefmt:%d, weather:%d", CfgData.inv, CfgData.showsec, CfgData.battdgt, CfgData.showbatt, CfgData.vibr, CfgData.datefmt, CfgData.weather);
+	if (DEBUG) app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Curr Conf #2: isunit:%d, cityid:%d", CfgData.isunit, (int)CfgData.cityid);
+	if (DEBUG) app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Weather Data: w_time:%d, w_temp:%d, w_icon:%s, w_cond:%s", (int)CfgData.w_time, CfgData.w_temp, CfgData.w_icon, CfgData.w_cond);
+  if (DEBUG) app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Calendar Data: calendar :c_subj%s, c_hours:%s", CfgData.c_subj, CfgData.c_hours);
 	
 	Layer *window_layer = window_get_root_layer(window);
 
@@ -530,26 +511,24 @@ static void update_configuration(void)
 			timer_weather = app_timer_register(100, timerCallbackWeather, NULL);
 		else
 			timer_weather = app_timer_register((60*60-(tmAkt-CfgData.w_time))*1000, timerCallbackWeather, NULL);
-	}  
+	}    
 }
 //-----------------------------------------------------------------------------------------------------------------------
 void in_received_handler(DictionaryIterator *received, void *ctx)
 {
-	app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Received Data: ");
+	if (DEBUG) app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Received Data: ");
     time_t tmAkt = time(NULL);
 	
 	Tuple *akt_tuple = dict_read_first(received);
     while (akt_tuple)
     {
 		int intVal = atoi(akt_tuple->value->cstring);
-        app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "KEY %d=%d/%s/%d", (int16_t)akt_tuple->key, akt_tuple->value->int16 ,akt_tuple->value->cstring, intVal);
+        if (DEBUG) app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "KEY %d=%d/%s/%d", (int16_t)akt_tuple->key, akt_tuple->value->int16 ,akt_tuple->value->cstring, intVal);
 
 		switch (akt_tuple->key)	{
 		case JS_READY:
-			CfgData.w_UpdateRetry = true;
-      CfgData.ready = true;
-      //Start calendar
-	    timerCallbackCalendar(NULL);
+			CfgData.w_UpdateRetry = true;      
+      CfgData.ready = true;            
 			break;
 		case C_INV:
 			persist_write_bool(C_INV, strcmp(akt_tuple->value->cstring, "yes") == 0);
@@ -608,12 +587,11 @@ void in_received_handler(DictionaryIterator *received, void *ctx)
 		case W_COND:
 			persist_write_string(W_COND, akt_tuple->value->cstring);
 			break;
-    case C_SUBJ:
-      CfgData.c_Updating = false;
+    case C_SUBJ:      
+      CfgData.c_UpdateRetry = false; //Update successful, usual update wait time
 			persist_write_string(C_SUBJ, akt_tuple->value->cstring);
       break;
-    case C_HOURS:
-      CfgData.c_Updating = false;
+    case C_HOURS:      
       persist_write_string(C_HOURS, akt_tuple->value->cstring);			
 			break;
 		}
@@ -626,7 +604,7 @@ void in_received_handler(DictionaryIterator *received, void *ctx)
 //-----------------------------------------------------------------------------------------------------------------------
 void in_dropped_handler(AppMessageResult reason, void *ctx)
 {
-    app_log(APP_LOG_LEVEL_WARNING,
+    if (DEBUG) app_log(APP_LOG_LEVEL_WARNING,
             __FILE__,
             __LINE__,
             "Message dropped, reason code %d",
@@ -639,6 +617,7 @@ void window_load(Window *window)
 	batteryAll = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BATTERIES);
   weekdayAll = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_WEEKDAY_32_139);
 	radio = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_RADIO);
+  connection = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_CONNECTION);
 	
 	digitS = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_DIGITAL_25));
 	digitM = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_DIGITAL_CASIO_DOTTED_22));
@@ -705,7 +684,15 @@ void window_load(Window *window)
 	bitmap_layer_set_bitmap(radio_layer, radio);
 	bitmap_layer_set_compositing_mode(radio_layer, GCompOpSet);
 	layer_add_child(window_layer, bitmap_layer_get_layer(radio_layer));
-	
+  
+  //Init connection 
+	connection_layer = bitmap_layer_create(GRect(65, 135, 31, 31));
+	bitmap_layer_set_background_color(connection_layer, GColorClear);
+	bitmap_layer_set_bitmap(connection_layer, connection);
+	bitmap_layer_set_compositing_mode(connection_layer, GCompOpSet);
+	layer_add_child(window_layer, bitmap_layer_get_layer(connection_layer));
+	layer_set_hidden(bitmap_layer_get_layer(connection_layer), true);  
+  
 	//Init inverter_layer
 	inv_layer = inverter_layer_create(GRect(0, 0, 144, 168));
 	sec_inv_layer = inverter_layer_create(GRect(114, 66, 25, 18));
@@ -759,7 +746,7 @@ void handle_init(void)
 		strcpy(sLang, "fr");
   else if (strncmp(sLocale, "ru", 2) == 0)
 		strcpy(sLang, "ru");
-	APP_LOG(APP_LOG_LEVEL_DEBUG, "Time locale is set to: %s/%s", sLocale, sLang);
+	if (DEBUG) APP_LOG(APP_LOG_LEVEL_DEBUG, "Time locale is set to: %s/%s", sLocale, sLang);
 
 	window = window_create();
 	window_set_window_handlers(window, (WindowHandlers) {
@@ -777,13 +764,13 @@ void handle_init(void)
 	tick_timer_service_subscribe(SECOND_UNIT, (TickHandler)tick_handler);
 	battery_state_service_subscribe(&battery_state_service_handler);
 	bluetooth_connection_service_subscribe(&bluetooth_connection_handler);
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "Subscribe Health");
+  if (DEBUG) APP_LOG(APP_LOG_LEVEL_DEBUG, "Subscribe Health");
   #if defined(PBL_HEALTH)
   // Attempt to subscribe 
   if(!health_service_events_subscribe(handle_health, NULL)) {
     APP_LOG(APP_LOG_LEVEL_ERROR, "Health not available!");
   } else {
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "Health available!");
+    if (DEBUG) APP_LOG(APP_LOG_LEVEL_DEBUG, "Health available!");
     // health_service_set_heart_rate_sample_period(0);
   }
   #else
@@ -796,14 +783,13 @@ void handle_init(void)
     app_message_register_inbox_dropped(in_dropped_handler);
     app_message_open(128, 128);
 	
-	APP_LOG(APP_LOG_LEVEL_DEBUG, "Done initializing, pushed window: %p", window);
+	if (DEBUG) APP_LOG(APP_LOG_LEVEL_DEBUG, "Done initializing, pushed window: %p", window);
 }
 //-----------------------------------------------------------------------------------------------------------------------
 void handle_deinit(void) 
 {
 	app_timer_cancel(timer_weather);
-	app_timer_cancel(timer_batt);
-  app_timer_cancel(timer_calendar);
+	app_timer_cancel(timer_batt);  
 	app_message_deregister_callbacks();
 	tick_timer_service_unsubscribe();
 	battery_state_service_unsubscribe();

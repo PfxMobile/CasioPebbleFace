@@ -37,6 +37,12 @@
         "resources": {
             "media": [
                 {
+                    "file": "images/no-conn.png",
+                    "name": "IMAGE_CONNECTION",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
                     "file": "images/week_day_3x.png",
                     "name": "IMAGE_WEEKDAY_32_139",
                     "targetPlatforms": null,
@@ -94,16 +100,16 @@
                     "type": "bitmap"
                 },
                 {
-                    "characterRegex": "[%0-9a-zA-Z\u0430\u0431\u0432\u0433\u0434\u0435\u0451\u0436\u0437\u0438\u043a\u043b\u043c\u043d\u043e\u043f\u0440\u0441\u0442\u0443\u0444\u0445\u044d\u044e\u044f\u0449\u0448\u044c\u044a\u0447\u0439\u0410\u0411\u0412\u0413\u0414\u0415\u0401\u0416\u0417\u0418\u041a\u041b\u041c\u041d\u041e\u041f\u0420\u0421\u0422\u0423\u0424\u0425\u042d\u042e\u042f\u0429\u0428\u042c\u042a\u0427\u0419. ]",
+                    "characterRegex": "[%0-9a-zA-Z\u0430\u0431\u0432\u0433\u0434\u0435\u0451\u0436\u0437\u0438\u043a\u043b\u043c\u043d\u043e\u043f\u0440\u0441\u0442\u0443\u0444\u0445\u044b\u044d\u044e\u044f\u0446\u0449\u0448\u044c\u044a\u0447\u0439\u0410\u0411\u0412\u0413\u0414\u0415\u0401\u0416\u0417\u0418\u041a\u041b\u041c\u041d\u041e\u041f\u0420\u0421\u0422\u0423\u0424\u0425\u042b\u042d\u042e\u042f\u0426\u0429\u0428\u042c\u042a\u0427\u0419. :]",
                     "file": "fonts/arialbd.ttf",
-                    "name": "FONT_ARIAL_BOLD_11",
+                    "name": "FONT_ARIAL_BOLD_9",
                     "targetPlatforms": null,
                     "type": "font"
                 },
                 {
-                    "characterRegex": "[%0-9a-zA-Z\u00e4\u00f6\u00fc\u00c4\u00d6\u00dc\u00df\u00c0\u00c2\u00c4\u00c1\u00c8\u00c9\u00ca\u00cb\u00ce\u00cf\u00cd\u00d4\u00d3\u0152\u00d9\u00db\u00dc\u00da\u0178\u00d1\u00e0\u00e2\u00e4\u00e1\u00e8\u00e9\u00ea\u00eb\u00ee\u00ef\u00ed\u00f4\u00f3\u0153\u00f9\u00fb\u00fc\u00fa\u00ff\u00c7\u00e7\u00f1\u00bf\u00a1\u00ba\u00aa. ]",
+                    "characterRegex": "[%0-9a-zA-Z\u0430\u0431\u0432\u0433\u0434\u0435\u0451\u0436\u0437\u0438\u043a\u043b\u043c\u043d\u043e\u043f\u0440\u0441\u0442\u0443\u0444\u0445\u044b\u044d\u044e\u044f\u0446\u0449\u0448\u044c\u044a\u0447\u0439\u0410\u0411\u0412\u0413\u0414\u0415\u0401\u0416\u0417\u0418\u041a\u041b\u041c\u041d\u041e\u041f\u0420\u0421\u0422\u0423\u0424\u0425\u042b\u042d\u042e\u042f\u0426\u0429\u0428\u042c\u042a\u0427\u0419. :]",
                     "file": "fonts/arialbd.ttf",
-                    "name": "FONT_ARIAL_BOLD_9",
+                    "name": "FONT_ARIAL_BOLD_11",
                     "targetPlatforms": null,
                     "type": "font"
                 },
