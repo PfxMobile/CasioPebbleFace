@@ -146,7 +146,7 @@ function updateWeather() {
 function updateCalendar() {
 	console.log("Updating calendar");
 	var req = new XMLHttpRequest();
-	var URL = "https://calout.azurewebsites.net/calendar";
+	var URL = "https://calout-191505.appspot.com/calendar";
   calendarPending = true;
 	req.open("GET", URL, true);
   req.responseType = 'json';
